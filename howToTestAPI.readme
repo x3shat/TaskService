@@ -1,0 +1,2 @@
+In Postman, go to the Headers tab.
+Add a new key Authorization and set the value to Bearer {your_token} (replace {your_token} with the actual token).
