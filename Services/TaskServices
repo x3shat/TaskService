@@ -1,0 +1,188 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using TaskService.Models;
+
+namespace TaskService.Services
+{
+    public class TaskServices
+    {
+        private readonly TaskContext _context;
+
+        public TaskServices(TaskContext context)
+        {
+            _context = context;
+        }
+
+        public async void SolderingandSandblasting(int orderId, string sandblastingAndSolderingAmount, string notes)
+        {
+            var existingTask = await _context.Tasks.FirstOrDefaultAsync(t => t.OrderId == orderId);
+
+            if (existingTask != null)
+            {
+                existingTask.SandblastingandSolderingAmount = sandblastingAndSolderingAmount;
+                existingTask.StepName = "Sandblasting and Soldering";
+                existingTask.Status = "Soldered and Sandblasted";
+                existingTask.SandblastingandSolderingNote = $"Sandblasting: {sandblastingAndSolderingAmount}. Notes: {notes}";
+                existingTask.UpdatedAt = DateTime.UtcNow;
+                _context.Tasks.Update(existingTask);
+            }
+            else
+            {
+                var newTask = new Task
+                {
+                    OrderId = orderId,
+                    SandblastingandSolderingAmount = sandblastingAndSolderingAmount,
+                    StepName = "Sandblasting and Soldering",
+                    Status = "Soldered and Sandblasted",
+                    SandblastingandSolderingNote = $"Sandblasting: {sandblastingAndSolderingAmount}. Notes: {notes}",
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await _context.Tasks.AddAsync(newTask);
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task<string> Painting(int orderId, string color, string paintType, string notes)
+        {
+            var existingTask = await _context.Tasks.FirstOrDefaultAsync(t => t.OrderId == orderId);
+
+            if (existingTask != null && existingTask.Status == "Soldered and Sandblasted")
+            {
+                existingTask.PaintType = paintType;
+                existingTask.StepName = "Painting";
+                existingTask.Status = "Painted";
+                existingTask.Color = color;
+                existingTask.PaintingNote += $"\nColor: {color}. Paint Type: {paintType}. Notes: {notes}";
+                existingTask.UpdatedAt = DateTime.UtcNow;
+                _context.Tasks.Update(existingTask);
+            }
+            else
+            {
+                throw new ArgumentException("Task not found or not yet sandblasted and soldered.");
+            }
+
+            await _context.SaveChangesAsync();
+            return existingTask.Status;
+        }
+
+        public async Task<string> Packaging(int orderId, int inspectionRating, string notes)
+        {
+            var existingTask = await _context.Tasks.FirstOrDefaultAsync(t => t.OrderId == orderId);
+
+            if (existingTask != null && existingTask.Status == "Painted")
+            {
+                existingTask.InspectionRating = inspectionRating;
+                existingTask.StepName = "Packaging";
+                existingTask.Status = "Packaged";
+                existingTask.PackagingNote += $"\nInspection Rating: {inspectionRating}. Notes: {notes}";
+                existingTask.UpdatedAt = DateTime.UtcNow;
+                _context.Tasks.Update(existingTask);
+            }
+            else
+            {
+                throw new ArgumentException("Task not found or not yet painted.");
+            }
+
+            await _context.SaveChangesAsync();
+            return existingTask.Status;
+        }
+
+        public async Task<List<Task>> GetAllTasks()
+        {
+            return await _context.Tasks.ToListAsync();
+        }
+
+        public async Task<string> SandblastSolderstatusByOrderId(int orderId)
+        {
+            var task = await _context.Tasks
+                .Where(t => t.OrderId == orderId)
+                .FirstOrDefaultAsync();
+
+            if (task == null)
+            {
+                return "Not yet soldered or sandblasted";
+            }
+            else if (task.Status == "Painted" || task.Status == "Packaged")
+            {
+                return "Soldered and Sandblasted";
+            }
+
+            return task.Status;
+        }
+
+        public async Task<string> PaintingstatusbyOrderId(int orderId)
+        {
+            var task = await _context.Tasks
+                .Where(t => t.OrderId == orderId)
+                .FirstOrDefaultAsync();
+
+            if (task == null)
+            {
+                return "No such order";
+            }
+            else if (task.Status == "Soldered and Sandblasted")
+            {
+                return "Not yet painted";
+            }
+            else if (task.Status == "Packaged")
+            {
+                return "Painted";
+            }
+
+            return task.Status;
+        }
+
+        public async Task<string> PackagingstatusbyOrderId(int orderId)
+        {
+            var task = await _context.Tasks
+                .Where(t => t.OrderId == orderId)
+                .FirstOrDefaultAsync();
+
+            if (task == null)
+            {
+                return "No such order";
+            }
+            else if (task.Status != "Painted")
+            {
+                return "Not yet packaged";
+            }
+
+            return task.Status;
+        }
+
+        public async Task<string> GetOrderStatus(int orderId)
+        {
+            var task = await _context.Tasks
+                .Where(t => t.OrderId == orderId)
+                .FirstOrDefaultAsync();
+
+            if (task == null)
+            {
+                return "Order Not Found";
+            }
+
+            return task.Status;
+        }
+
+        public async Task<string> DeleteTask(int orderId)
+        {
+            var taskToDelete = await _context.Tasks.FirstOrDefaultAsync(t => t.OrderId == orderId);
+
+            if (taskToDelete != null)
+            {
+                _context.Tasks.Remove(taskToDelete);
+                await _context.SaveChangesAsync();
+                return "Deleted row";
+            }
+            else
+            {
+                throw new ArgumentException("Task not found for deletion");
+            }
+        }
+    }
+}
